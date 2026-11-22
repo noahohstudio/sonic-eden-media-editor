@@ -64,7 +64,13 @@
     }
     try { localStorage.setItem(KEEP, b64.to(new Uint8Array(await crypto.subtle.exportKey("raw", key)))); } catch {}
     let html = page.replace(/<script src="([^"]+)"><\/script>/g, (m, src) => (urls[src] ? `<script src="${urls[src]}"><\/script>` : m));
-    html = html.replace("<head>", `<head><script>window.EDEN_ASSETS = ${JSON.stringify(urls)};<\/script>`);
+    // the studio comes up softly from the sheet, as the line goes (Noah: "And for opening up from the password too")
+    const rise = "<style>@keyframes edenRise{from{opacity:0}}body{animation:edenRise .7s cubic-bezier(.2,0,0,1) both}@media (prefers-reduced-motion:reduce){body{animation:none}}</style>";
+    html = html.replace("<head>", `<head><script>window.EDEN_ASSETS = ${JSON.stringify(urls)};<\/script>${rise}`);
+    if (!form.classList.contains("waiting")) {
+      form.classList.add("waiting");
+      await new Promise((r) => setTimeout(r, 320));
+    }
     document.open();
     document.write(html);
     document.close();
