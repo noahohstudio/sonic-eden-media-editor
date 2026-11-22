@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Sonic Eden Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mona+Sans:wdth,wght@87.5..100,200..400&display=swap">
+<style>
+  html, body { margin: 0; height: 100%; background: #ececec; }
+  body { display: grid; place-items: center; font-family: "Mona Sans", system-ui, sans-serif; font-stretch: 87.5%; color: #858585; -webkit-font-smoothing: antialiased; }
+  form { display: flex; flex-direction: column; align-items: center; gap: 30px; padding: 0 16px; transition: opacity 0.3s; }
+  form.waiting { opacity: 0; pointer-events: none; }
+  .name { font-weight: 200; font-size: 44px; letter-spacing: -0.06em; }
+  input { all: unset; width: 220px; max-width: 70vw; text-align: center; font-size: 14px; font-weight: 300; letter-spacing: 0.18em; color: #4d4d4d; border-bottom: 1px solid #cfcfcf; padding: 8px 0; }
+  input::placeholder { color: #b3b3b3; letter-spacing: 0.12em; }
+  input:focus { border-bottom-color: #9a9a9a; }
+  .note { font-size: 10.5px; letter-spacing: 0.14em; color: #a3a3a3; min-height: 14px; }
+</style>
+</head>
+<body>
+<!--
+  Sonic Eden studio, locked. Everything the studio is (its page, its code, the ring, the tracks) is in site.bin,
+  encrypted (AES-256-GCM, its key drawn from the password by PBKDF2-SHA256). The password is in no file here: the right
+  one opens site.bin in the browser, and the studio is written in its place. This browser remembers the key after that.
+-->
+<form id="gate" class="waiting" autocomplete="off">
+  <div class="name">sonic eden</div>
+  <input id="pw" type="password" placeholder="password" aria-label="Password">
+  <div class="note" id="note" aria-live="polite"></div>
+</form>
+<script>
+(() => {
+  "use strict";
+  const ITER = 600000;
+  const KEEP = "sonic-eden-studio-key";
+  const form = document.getElementById("gate"), input = document.getElementById("pw"), note = document.getElementById("note");
+  let packed = null;
+  const site = () => packed || (packed = fetch("site.bin", { cache: "no-cache" }).then((r) => {
+    if (!r.ok) throw new Error("missing");
+    return r.arrayBuffer();
+  }).then((b) => new Uint8Array(b)));
+  const b64 = { to: (u8) => btoa(String.fromCharCode(...u8)), from: (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0)) };
+
+  async function keyFrom(password) {
+    const buf = await site();
+    const salt = buf.slice(4, 20);
+    const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: ITER, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, true, ["decrypt"]);
+  }
+  // site.bin: "SEE1", the salt (16), the iv (12), then the sealed bundle. The bundle: its index's length (4, little
+  // endian), the index ({ files: [[path, type, offset, length]...] }), then the files end to end
+  async function open(key) {
+    const buf = await site();
+    const plain = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: buf.slice(20, 32) }, key, buf.slice(32)));
+    const n = new DataView(plain.buffer).getUint32(0, true);
+    const index = JSON.parse(new TextDecoder().decode(plain.subarray(4, 4 + n)));
+    const urls = {};
+    let page = "";
+    for (const [path, type, offset, length] of index.files) {
+      const part = plain.subarray(4 + n + offset, 4 + n + offset + length);
+      if (path === "index.html") page = new TextDecoder().decode(part);
+      else urls[path] = URL.createObjectURL(new Blob([part], { type }));
+    }
+    try { localStorage.setItem(KEEP, b64.to(new Uint8Array(await crypto.subtle.exportKey("raw", key)))); } catch {}
+    let html = page.replace(/<script src="([^"]+)"><\/script>/g, (m, src) => (urls[src] ? `<script src="${urls[src]}"><\/script>` : m));
+    html = html.replace("<head>", `<head><script>window.EDEN_ASSETS = ${JSON.stringify(urls)};<\/script>`);
+    document.open();
+    document.write(html);
+    document.close();
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!input.value) return;
+    note.textContent = "opening";
+    try {
+      await open(await keyFrom(input.value));
+    } catch (err) {
+      note.textContent = err && err.message === "missing" ? "can't reach the studio" : "not quite";
+      input.select();
+    }
+  });
+
+  // remembered from last time?
+  (async () => {
+    let kept = null;
+    try { kept = localStorage.getItem(KEEP); } catch {}
+    if (kept) {
+      try {
+        const key = await crypto.subtle.importKey("raw", b64.from(kept), { name: "AES-GCM" }, true, ["decrypt"]);
+        return await open(key);
+      } catch {
+        try { localStorage.removeItem(KEEP); } catch {}
+      }
+    }
+    form.classList.remove("waiting");
+    input.focus();
+  })();
+})();
+</script>
+</body>
+</html>
