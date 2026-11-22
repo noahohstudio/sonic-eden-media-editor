@@ -11,9 +11,8 @@
 <style>
   html, body { margin: 0; height: 100%; background: #ececec; }
   body { display: grid; place-items: center; font-family: "Mona Sans", system-ui, sans-serif; font-stretch: 87.5%; color: #858585; -webkit-font-smoothing: antialiased; }
-  form { display: flex; flex-direction: column; align-items: center; gap: 30px; padding: 0 16px; transition: opacity 0.3s; }
+  form { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 0 16px; transition: opacity 0.3s; }
   form.waiting { opacity: 0; pointer-events: none; }
-  .name { font-weight: 200; font-size: 44px; letter-spacing: -0.06em; }
   input { all: unset; width: 220px; max-width: 70vw; text-align: center; font-size: 14px; font-weight: 300; letter-spacing: 0.18em; color: #4d4d4d; border-bottom: 1px solid #cfcfcf; padding: 8px 0; }
   input::placeholder { color: #b3b3b3; letter-spacing: 0.12em; }
   input:focus { border-bottom-color: #9a9a9a; }
@@ -27,8 +26,7 @@
   one opens site.bin in the browser, and the studio is written in its place. This browser remembers the key after that.
 -->
 <form id="gate" class="waiting" autocomplete="off">
-  <div class="name">sonic eden</div>
-  <input id="pw" type="password" placeholder="password" aria-label="Password">
+  <input id="pw" type="password" aria-label="Password">
   <div class="note" id="note" aria-live="polite"></div>
 </form>
 <script>
